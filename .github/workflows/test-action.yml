@@ -1,0 +1,67 @@
+name: Test check if alive action
+
+on:
+  pull_request:
+  push:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test-action:
+    runs-on: builder
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reboot target
+        run: |
+          ssh user@target01 sudo reboot now
+
+      - name: Check if target is alive each 1s
+        id: target-alive-1s
+        uses: outrunmr/check-if-alive@main
+        with:
+          target: target01
+          user: user
+          wait-time: 1
+
+      - name: Run tests
+        if: ${{ steps.target-alive-1s.outputs.alive }}
+        run: |
+          ssh user@target01 hostname
+
+      - name: Reboot target
+        run: |
+          ssh user@target01 sudo reboot now
+
+      - name: Check if target is alive each 5s
+        id: target-alive-5s
+        uses: outrunmr/check-if-alive@main
+        with:
+          target: target01
+          user: user
+          wait-time: 5
+
+      - name: Run tests
+        if: ${{ steps.target-alive-5s.outputs.alive }}
+        run: |
+          ssh user@target01 hostname
+
+      - name: Shutdown the target
+        run: |
+          ssh user@target01 sudo shutdown now
+
+      - name: Check if target is alive each 10s
+        id: target-alive-10s
+        uses: outrunmr/check-if-alive@main
+        with:
+          target: target01
+          user: user
+          wait-time: 10
+
+      - name: Run tests
+        if: ${{ steps.target-alive-10s.outputs.alive }}
+        run: |
+          ssh user@target01 hostname
