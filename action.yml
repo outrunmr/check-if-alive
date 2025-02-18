@@ -1,0 +1,73 @@
+name: 'Check if alive'
+description: 'Check if provided target is alive and ready to serve connections'
+inputs:
+  target:
+    required: true
+    description: >
+      IP address or hostname. Check if provided target is alive.
+      If user@target is provided then there is no need to add user aswell
+  user:
+    description: >
+      username that will be used to establish connection with target.
+      Omit if user was provided in target
+  passwd:
+    description: >
+      Password for specified user. Remember to use secrets.
+  wait-time:
+    description: >
+      Wait for x seconds till next attempt.
+      Default 5s.
+    default: '5'
+  iterations:
+    description: >
+      Try x times to establish connection to target.
+      Default 60.
+    default: '60'
+outputs:
+  alive:
+    description: 'Boolean, true if ssh connection was established else false'
+    value: ${{ steps.check-if-alive.outputs.is-alive }}
+  alive-ping:
+    description: 'Boolean, true if ping was successful'
+    value: ${{ steps.check-if-alive-ping.outputs.is-alive }}
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Ping target'
+      id: check-if-alive-ping
+      continue-on-error: true
+      shell: bash
+      run: |
+        for i in {1..${{ inputs.iterations }}}; do
+          echo "PING: Trying to ping ${{ inputs.target }}, Attempt: ${i}"
+          ping -c 1 ${{ inputs.target }} 2>&1 > /dev/null
+          if [ "$?" -eq "0" ]; then
+            echo "PING: Trying to ping ${{ inputs.target }}, Attempt: ${i}, Result: success"
+            echo "is-alive=True" >> $GITHUB_OUTPUT
+            sleep ${{ inputs.wait-time }}
+            exit 0
+          fi
+        done
+
+        echo "PING: Trying to ping ${{ inputs.target }}, Attempt: ${i}, Result: failure"
+        echo "is-alive=False" >> $GITHUB_OUTPUT
+
+    - name: 'Check ssh connection'
+      if: ${{ steps.check-if-alive-ping.outputs.is-alive }}
+      continue-on-error: true
+      id: check-if-alive
+      shell: bash
+      run: |
+        for i in {1..${{ inputs.iterations }}}; do
+          echo "SSH: Trying to connect to ${{ inputs.target }}, Attempt: ${i}"
+          ssh ${{ inputs.user }}@${{ inputs.target }} hostname 2>&1 > /dev/null
+          if [ "$?" -eq "0" ]; then
+            echo "SSH: Trying to connect to ${{ inputs.target }}, Attempt: ${i}, Result: success"
+            echo "is-alive=True" >> $GITHUB_OUTPUT
+            sleep ${{ inputs.wait-time }}
+            exit 0
+          fi
+        done
+
+        echo "SSH: Trying to connect to ${{ inputs.target }}, Attempt: ${i}, Result: failure"
+        echo "is-alive=False" >> $GITHUB_OUTPUT
